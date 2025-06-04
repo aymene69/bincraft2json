@@ -53,10 +53,29 @@ jobs:
           
           # Install system dependencies in the build environment
           CIBW_BEFORE_ALL_LINUX: |
-            yum install -y libzstd-devel || apt-get update && apt-get install -y libzstd-dev || apk add zstd-dev
+            # Try to install zstd development libraries
+            # First try with yum using alternative repositories
+            yum install -y centos-release-scl-rh || true
+            yum install -y --enablerepo=extras epel-release || true
+            yum clean all
+            yum makecache || true
+            yum install -y libzstd-devel || {
+              echo "yum failed, trying to build zstd from source..."
+              curl -L https://github.com/facebook/zstd/releases/download/v1.5.5/zstd-1.5.5.tar.gz -o zstd.tar.gz
+              tar -xzf zstd.tar.gz
+              cd zstd-1.5.5
+              make -j$(nproc)
+              make install PREFIX=/usr/local
+              ldconfig
+              cd ..
+              rm -rf zstd-1.5.5 zstd.tar.gz
+            }
           
           CIBW_BEFORE_ALL_MACOS: |
             brew install zstd
+          
+          # Set library path for linking
+          CIBW_ENVIRONMENT_LINUX: "LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH PKG_CONFIG_PATH=/usr/local/lib/pkgconfig:$PKG_CONFIG_PATH"
           
           # Test the built wheels
           CIBW_TEST_COMMAND: "python -c 'import bincraft2json; print(bincraft2json.__version__)'"
