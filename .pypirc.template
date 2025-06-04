@@ -1,0 +1,26 @@
+# PyPI Configuration Template
+# 
+# 1. Copy this file to ~/.pypirc (in your HOME directory, NOT in the repo!)
+# 2. Replace the placeholder tokens with your actual PyPI API tokens
+# 3. NEVER commit this file to version control
+#
+# To get API tokens:
+# - PyPI: https://pypi.org/manage/account/token/
+# - Test PyPI: https://test.pypi.org/manage/account/token/
+
+[distutils]
+index-servers = pypi testpypi
+
+[pypi]
+repository: https://upload.pypi.org/legacy/
+username: __token__
+password: pypi-REPLACE_WITH_YOUR_PYPI_TOKEN_HERE
+
+[testpypi]
+repository: https://test.pypi.org/legacy/
+username: __token__
+password: pypi-REPLACE_WITH_YOUR_TESTPYPI_TOKEN_HERE
+
+# Usage:
+# python -m twine upload --repository testpypi dist/*  # Upload to Test PyPI
+# python -m twine upload dist/*                        # Upload to PyPI 

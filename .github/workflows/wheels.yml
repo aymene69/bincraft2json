@@ -1,0 +1,109 @@
+name: Build and upload wheels
+
+on:
+  push:
+    branches: [ main ]
+    tags: [ "v*" ]
+  pull_request:
+    branches: [ main ]
+  release:
+    types: [published]
+
+jobs:
+  build_wheels:
+    name: Build wheels on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        # Build for Linux x86_64 and aarch64, macOS x86_64 and arm64
+        os: [ubuntu-latest, macos-latest]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up QEMU (for Linux ARM64)
+        if: runner.os == 'Linux'
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: all
+
+      - name: Install system dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libzstd-dev
+
+      - name: Install system dependencies (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew install zstd
+
+      - name: Build wheels
+        uses: pypa/cibuildwheel@v2.16.2
+        env:
+          # Build for Python 3.7-3.12
+          CIBW_BUILD: cp37-* cp38-* cp39-* cp310-* cp311-* cp312-*
+          
+          # Build for x86_64 and arm64 on macOS, x86_64 and aarch64 on Linux
+          CIBW_ARCHS_MACOS: x86_64 arm64
+          CIBW_ARCHS_LINUX: x86_64 aarch64
+          
+          # Skip 32-bit builds and PyPy
+          CIBW_SKIP: "*-win32 *-manylinux_i686 pp*"
+          
+          # Install system dependencies in the build environment
+          CIBW_BEFORE_ALL_LINUX: |
+            yum install -y libzstd-devel || apt-get update && apt-get install -y libzstd-dev || apk add zstd-dev
+          
+          CIBW_BEFORE_ALL_MACOS: |
+            brew install zstd
+          
+          # Test the built wheels
+          CIBW_TEST_COMMAND: "python -c 'import bincraft2json; print(bincraft2json.__version__)'"
+          
+          # Build with the latest pip and setuptools
+          CIBW_BUILD_FRONTEND: build
+
+      - uses: actions/upload-artifact@v3
+        with:
+          name: wheels-${{ matrix.os }}
+          path: ./wheelhouse/*.whl
+
+  build_sdist:
+    name: Build source distribution
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install build
+
+      - name: Build sdist
+        run: python -m build --sdist
+
+      - uses: actions/upload-artifact@v3
+        with:
+          name: sdist
+          path: dist/*.tar.gz
+
+  upload_pypi:
+    needs: [build_wheels, build_sdist]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'release' && github.event.action == 'published'
+    permissions:
+      id-token: write
+
+    steps:
+      - uses: actions/download-artifact@v3
+        with:
+          path: dist
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1 
