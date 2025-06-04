@@ -44,7 +44,17 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
+          name: sdist
           path: dist
 
+      - name: Debug - List files
+        run: |
+          echo "Contents of dist directory:"
+          ls -la dist/
+          echo "Contents of current directory:"
+          ls -la
+
       - name: Publish to PyPI
-        uses: pypa/gh-action-pypi-publish@release/v1 
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist/ 
